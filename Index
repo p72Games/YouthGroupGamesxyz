@@ -1,0 +1,594 @@
+import React, { useMemo, useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Search,
+  SlidersHorizontal,
+  Filter,
+  Sparkles,
+  Users,
+  Clock3,
+  Dumbbell,
+  MapPin,
+  Bookmark,
+  BookmarkCheck,
+  Shuffle,
+  Printer,
+  X,
+  Info,
+} from "lucide-react";
+
+// --- Sample dataset (seed). Replace or expand with your own content. ---
+const SEED_GAMES = [
+  {
+    id: "sardines",
+    name: "Sardines (Reverse Hide & Seek)",
+    summary:
+      "One person hides while everyone else seeks; when you find the hider, you quietly join them until only one seeker remains.",
+    age: "11+",
+    groupSize: "8-40",
+    energy: "Medium",
+    setting: ["Indoor", "Outdoor"],
+    time: 15,
+    equipment: "None",
+    instructions: [
+      "Choose one hider; everyone else counts with eyes closed.",
+      "Seekers spread out; when someone finds the hider, they silently squeeze in and keep hidden.",
+      "Round ends when the last seeker finds the group (usually very crammed and hilarious).",
+    ],
+    safety: [
+      "Set clear boundaries (rooms or areas allowed).",
+      "Lights on enough for safety; no running near obstacles.",
+    ],
+    tags: ["icebreaker", "classic", "quiet"],
+  },
+  {
+    id: "ultimate-rock-paper-scissors",
+    name: "Ultimate Rock–Paper–Scissors (Cheerleader Version)",
+    summary:
+      "Everyone starts playing RPS; winners advance while losers become cheerleaders for whoever beat them until two finalists remain.",
+    age: "8+",
+    groupSize: "10-200",
+    energy: "High",
+    setting: ["Indoor", "Outdoor"],
+    time: 10,
+    equipment: "None",
+    instructions: [
+      "All players pair up and play one round of RPS.",
+      "Losers join the winner's cheer squad and follow them to their next match.",
+      "Continue until two finalists face off with the whole room cheering.",
+    ],
+    safety: ["Keep movement to walking pace; avoid dog-piles."],
+    tags: ["no-prep", "tournament", "loud"],
+  },
+  {
+    id: "human-knot",
+    name: "Human Knot",
+    summary:
+      "Players form a circle, grab random hands, and try to untangle into a circle without letting go.",
+    age: "10+",
+    groupSize: "6-14",
+    energy: "Medium",
+    setting: ["Indoor", "Outdoor"],
+    time: 12,
+    equipment: "None",
+    instructions: [
+      "Stand shoulder-to-shoulder in a circle.",
+      "Everyone reaches across to hold two different people's hands.",
+      "Work together to step over/under to untangle into a circle.",
+    ],
+    safety: ["Opt-out option for anyone uncomfortable with close contact.", "Watch balance and joints."],
+    tags: ["teamwork", "problem-solving"],
+  },
+  {
+    id: "spoon-catapult",
+    name: "Spoon Catapult Relay",
+    summary:
+      "Teams fling mini marshmallows using spoons, catching in cups down a relay line; most catches win.",
+    age: "8+",
+    groupSize: "8-30",
+    energy: "High",
+    setting: ["Indoor"],
+    time: 15,
+    equipment: "Spoons, paper cups, mini marshmallows",
+    instructions: [
+      "Divide into even teams; set start and catch lines.",
+      "First player catapults a marshmallow to their catcher; swap roles and rotate.",
+      "Count total catches in 3 minutes; repeat best-of-3.",
+    ],
+    safety: ["Check for food allergies; use eye protection rule: no aiming at faces."],
+    tags: ["relay", "messy", "competitive"],
+  },
+  {
+    id: "bible-sword-drill",
+    name: "Sword Drill (Bible Lookup Race)",
+    summary:
+      "Players race to find a given Bible verse; first to stand and read wins a point.",
+    age: "10+",
+    groupSize: "4-60",
+    energy: "Low",
+    setting: ["Indoor"],
+    time: 10,
+    equipment: "Bibles or Bible apps",
+    instructions: [
+      "All hold closed Bibles/apps at chest height (\"Swords up!\").",
+      "Leader calls a reference; players race to locate and stand to read.",
+      "Award points to first 3 readers; rotate judges to keep it fun.",
+    ],
+    safety: ["Promote good sportsmanship; accessibility for readers."],
+    tags: ["faith", "quiz", "no-prep"],
+  },
+  {
+    id: "balloon-stomp",
+    name: "Balloon Stomp",
+    summary:
+      "Players try to pop others' ankle-tied balloons while protecting their own.",
+    age: "8+",
+    groupSize: "8-50",
+    energy: "High",
+    setting: ["Indoor", "Outdoor"],
+    time: 8,
+    equipment: "Balloons, string",
+    instructions: [
+      "Tie one balloon to each player's ankle with 30cm string.",
+      "On GO, stomp others' balloons; last with balloon wins.",
+      "Option: team mode with colour-coded balloons.",
+    ],
+    safety: ["Clear floor; closed-toe shoes; ear protection for sensitive players."],
+    tags: ["party", "chaos", "quick"],
+  },
+];
+
+const AGE_OPTIONS = ["Any", "8+", "10+", "11+", "13+", "16+"];
+const ENERGY_OPTIONS = ["Any", "Low", "Medium", "High"];
+const SETTING_OPTIONS = ["Any", "Indoor", "Outdoor"];
+
+function useLocalStorage(key, initial) {
+  const [state, setState] = useState(() => {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : initial;
+    } catch {
+      return initial;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(key, JSON.stringify(state));
+    } catch {}
+  }, [key, state]);
+  return [state, setState];
+}
+
+function Pill({ children }) {
+  return (
+    <span className="inline-block rounded-full border px-2 py-0.5 text-xs opacity-80">
+      {children}
+    </span>
+  );
+}
+
+function TagList({ tags }) {
+  return (
+    <div className="flex flex-wrap gap-1 mt-2">
+      {tags?.map((t) => (
+        <Pill key={t}>{t}</Pill>
+      ))}
+    </div>
+  );
+}
+
+function Header({ onPrint }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center gap-3">
+        <div className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-indigo-500 to-violet-500 shadow" />
+        <div>
+          <h1 className="text-2xl font-bold leading-tight">Youth Group Games XYZ</h1>
+          <p className="text-sm opacity-70 -mt-0.5">Fast filters. No faff. Pick a winner for tonight.</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={onPrint}
+          className="inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm hover:bg-neutral-50"
+        >
+          <Printer className="h-4 w-4" /> Print Pack
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default function App() {
+  const [query, setQuery] = useState("");
+  const [age, setAge] = useState("Any");
+  const [energy, setEnergy] = useState("Any");
+  const [setting, setSetting] = useState("Any");
+  const [maxTime, setMaxTime] = useState(30);
+  const [bookmarks, setBookmarks] = useLocalStorage("ygg.bookmarks", []);
+  const [selected, setSelected] = useState(null);
+
+  const data = SEED_GAMES; // Swap for CMS/API later
+
+  const filtered = useMemo(() => {
+    return data.filter((g) => {
+      const matchesQuery = `${g.name} ${g.summary} ${g.tags?.join(" ")}`
+        .toLowerCase()
+        .includes(query.toLowerCase());
+      const matchesAge = age === "Any" || g.age === age || (age === "8+" && g.age === "8+") || (age === "10+" && (g.age === "10+" || g.age === "11+" || g.age === "13+" || g.age === "16+"));
+      const matchesEnergy = energy === "Any" || g.energy === energy;
+      const matchesSetting =
+        setting === "Any" || g.setting?.includes(setting);
+      const matchesTime = (g.time ?? 999) <= maxTime;
+      return matchesQuery && matchesAge && matchesEnergy && matchesSetting && matchesTime;
+    });
+  }, [data, query, age, energy, setting, maxTime]);
+
+  const toggleBookmark = (id) => {
+    setBookmarks((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const bookmarkedGames = useMemo(
+    () => data.filter((g) => bookmarks.includes(g.id)),
+    [bookmarks, data]
+  );
+
+  const onPrint = () => {
+    window.print();
+  };
+
+  return (
+    <div className="min-h-screen bg-neutral-50 text-neutral-900">
+      <div className="mx-auto max-w-6xl px-4 py-6 print:px-0">
+        <Header onPrint={onPrint} />
+
+        {/* Controls */}
+        <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-12">
+          <div className="md:col-span-4">
+            <div className="flex items-center gap-2 rounded-2xl border bg-white px-3 py-2 shadow-sm">
+              <Search className="h-4 w-4 opacity-60" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search games, tags, ideas…"
+                className="w-full bg-transparent text-sm outline-none"
+              />
+            </div>
+          </div>
+          <div className="md:col-span-8">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
+              <Select label="Age" value={age} onChange={setAge} options={AGE_OPTIONS} icon={Users} />
+              <Select label="Energy" value={energy} onChange={setEnergy} options={ENERGY_OPTIONS} icon={Dumbbell} />
+              <Select label="Setting" value={setting} onChange={setSetting} options={SETTING_OPTIONS} icon={MapPin} />
+              <NumberSlider label="Max Minutes" value={maxTime} setValue={setMaxTime} min={3} max={45} icon={Clock3} />
+              <BadgeCounter label="Saved" count={bookmarks.length} icon={Bookmark} />
+              <RandomButton games={filtered} onPick={setSelected} />
+            </div>
+          </div>
+        </div>
+
+        {/* Results */}
+        <section className="mt-6">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm opacity-70">
+              <Filter className="h-4 w-4" />
+              <span>
+                Showing <strong>{filtered.length}</strong> of {data.length} games
+              </span>
+            </div>
+            <div className="text-xs opacity-60 hidden print:block">
+              youthgroupgames.xyz — quick print pack
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {filtered.map((g) => (
+              <motion.div key={g.id} layout>
+                <GameCard
+                  game={g}
+                  saved={bookmarks.includes(g.id)}
+                  onSave={() => toggleBookmark(g.id)}
+                  onOpen={() => setSelected(g)}
+                />
+              </motion.div>
+            ))}
+          </div>
+
+          {filtered.length === 0 && (
+            <EmptyState />
+          )}
+        </section>
+
+        {/* Saved list for printing */}
+        {bookmarks.length > 0 && (
+          <section className="mt-10 print:mt-6">
+            <h2 className="mb-3 text-lg font-semibold">Saved for Tonight</h2>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 print:grid-cols-2">
+              {bookmarkedGames.map((g) => (
+                <PrintCard key={g.id} game={g} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        <Footer />
+      </div>
+
+      <AnimatePresence>
+        {selected && (
+          <GameModal
+            game={selected}
+            onClose={() => setSelected(null)}
+            onSave={() => toggleBookmark(selected.id)}
+            saved={bookmarks.includes(selected.id)}
+          />
+        )}
+      </AnimatePresence>
+
+      <style>{`
+        @media print {
+          * { color-adjust: exact; -webkit-print-color-adjust: exact; }
+          .print\\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .print\\:mt-6 { margin-top: 1.5rem; }
+          .print\\:block { display: block; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function Select({ label, value, onChange, options, icon: Icon }) {
+  return (
+    <div className="rounded-2xl border bg-white px-3 py-2 shadow-sm">
+      <div className="mb-1 flex items-center gap-1 text-xs font-medium opacity-60">
+        <SlidersHorizontal className="h-3 w-3" /> {label}
+      </div>
+      <div className="flex items-center gap-2">
+        {Icon && <Icon className="h-4 w-4 opacity-60" />}
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full bg-transparent text-sm outline-none"
+        >
+          {options.map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+function NumberSlider({ label, value, setValue, min, max, icon: Icon }) {
+  return (
+    <div className="rounded-2xl border bg-white px-3 py-2 shadow-sm">
+      <div className="mb-1 flex items-center gap-1 text-xs font-medium opacity-60">
+        <Clock3 className="h-3 w-3" /> {label}
+      </div>
+      <div className="flex items-center gap-2">
+        {Icon && <Icon className="h-4 w-4 opacity-60" />}
+        <input
+          type="range"
+          min={min}
+          max={max}
+          value={value}
+          onChange={(e) => setValue(parseInt(e.target.value))}
+          className="w-full"
+        />
+        <div className="text-xs w-10 text-right opacity-70">{value}m</div>
+      </div>
+    </div>
+  );
+}
+
+function BadgeCounter({ label, count, icon: Icon }) {
+  return (
+    <div className="rounded-2xl border bg-white px-3 py-2 shadow-sm">
+      <div className="mb-1 flex items-center gap-1 text-xs font-medium opacity-60">
+        <Info className="h-3 w-3" /> {label}
+      </div>
+      <div className="flex items-center gap-2 text-sm">
+        <Icon className="h-4 w-4 opacity-60" />
+        <span className="font-medium">{count}</span>
+      </div>
+    </div>
+  );
+}
+
+function RandomButton({ games, onPick }) {
+  const handle = () => {
+    if (!games || games.length === 0) return;
+    const idx = Math.floor(Math.random() * games.length);
+    onPick(games[idx]);
+  };
+  return (
+    <button
+      onClick={handle}
+      className="flex items-center justify-center gap-2 rounded-2xl border bg-white px-3 py-2 text-sm shadow-sm hover:bg-neutral-50"
+    >
+      <Shuffle className="h-4 w-4" /> Random
+    </button>
+  );
+}
+
+function GameCard({ game, saved, onSave, onOpen }) {
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      className="rounded-2xl border bg-white p-4 shadow-sm hover:shadow-md"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-base font-semibold leading-tight">{game.name}</h3>
+          <p className="mt-1 text-sm opacity-80 line-clamp-3">{game.summary}</p>
+          <div className="mt-2 flex flex-wrap gap-2 text-xs opacity-70">
+            <span className="inline-flex items-center gap-1"><Users className="h-4 w-4" /> {game.groupSize}</span>
+            <span className="inline-flex items-center gap-1"><Dumbbell className="h-4 w-4" /> {game.energy}</span>
+            <span className="inline-flex items-center gap-1"><MapPin className="h-4 w-4" /> {game.setting?.join("/")}</span>
+            <span className="inline-flex items-center gap-1"><Clock3 className="h-4 w-4" /> {game.time}m</span>
+          </div>
+          <TagList tags={game.tags} />
+        </div>
+        <div className="flex flex-col items-end gap-2">
+          <button
+            onClick={onSave}
+            className="rounded-full border px-2 py-1 text-xs hover:bg-neutral-50"
+            title={saved ? "Remove bookmark" : "Save for later"}
+          >
+            {saved ? (
+              <span className="inline-flex items-center gap-1"><BookmarkCheck className="h-4 w-4" /> Saved</span>
+            ) : (
+              <span className="inline-flex items-center gap-1"><Bookmark className="h-4 w-4" /> Save</span>
+            )}
+          </button>
+          <button
+            onClick={onOpen}
+            className="inline-flex items-center gap-2 rounded-full bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white shadow hover:bg-neutral-800"
+          >
+            <Sparkles className="h-4 w-4" /> View
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function GameModal({ game, onClose, onSave, saved }) {
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 md:items-center"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <motion.div
+        initial={{ y: 24, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 24, opacity: 0 }}
+        transition={{ type: "spring", stiffness: 260, damping: 22 }}
+        className="max-h-[85vh] w-full max-w-2xl overflow-auto rounded-2xl border bg-white p-5 shadow-xl"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-xl font-semibold leading-tight">{game.name}</h3>
+            <p className="mt-1 text-sm opacity-80">{game.summary}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-full border p-1 hover:bg-neutral-50"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3 text-sm opacity-80">
+          <InfoRow icon={Users} label="Group Size" value={game.groupSize} />
+          <InfoRow icon={Dumbbell} label="Energy" value={game.energy} />
+          <InfoRow icon={MapPin} label="Setting" value={game.setting?.join(" / ")} />
+          <InfoRow icon={Clock3} label="Time" value={`${game.time} minutes`} />
+          <InfoRow icon={SlidersHorizontal} label="Age" value={game.age} />
+          <InfoRow icon={Filter} label="Equipment" value={game.equipment || "None"} />
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <Section title="How to Play">
+            <ol className="ml-4 list-decimal space-y-2">
+              {game.instructions?.map((step, i) => (
+                <li key={i}>{step}</li>
+              ))}
+            </ol>
+          </Section>
+          <Section title="Safety / Inclusion">
+            <ul className="ml-4 list-disc space-y-2">
+              {game.safety?.map((s, i) => (
+                <li key={i}>{s}</li>
+              ))}
+            </ul>
+          </Section>
+        </div>
+
+        <div className="mt-5 flex items-center justify-between">
+          <TagList tags={game.tags} />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onSave}
+              className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm hover:bg-neutral-50"
+            >
+              {saved ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
+              {saved ? "Saved" : "Save for later"}
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="inline-flex items-center gap-2 rounded-full bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800"
+            >
+              <Printer className="h-4 w-4" /> Print
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function InfoRow({ icon: Icon, label, value }) {
+  return (
+    <div className="flex items-center gap-2 rounded-xl border bg-neutral-50 px-3 py-2">
+      <Icon className="h-4 w-4 opacity-60" />
+      <span className="text-xs uppercase tracking-wide opacity-60">{label}</span>
+      <span className="ml-auto text-sm font-medium">{value}</span>
+    </div>
+  );
+}
+
+function Section({ title, children }) {
+  return (
+    <div className="rounded-2xl border p-4">
+      <h4 className="mb-2 text-sm font-semibold uppercase tracking-wide opacity-70">{title}</h4>
+      {children}
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="mt-8 rounded-2xl border bg-white p-8 text-center shadow-sm">
+      <p className="text-sm opacity-80">No games found. Try clearing a filter or widening the time limit.</p>
+    </div>
+  );
+}
+
+function PrintCard({ game }) {
+  return (
+    <div className="rounded-2xl border bg-white p-4 shadow-sm">
+      <h3 className="text-base font-semibold leading-tight">{game.name}</h3>
+      <div className="mt-1 text-sm opacity-80">{game.summary}</div>
+      <div className="mt-2 grid grid-cols-2 gap-2 text-xs opacity-70">
+        <span className="inline-flex items-center gap-1"><Users className="h-4 w-4" /> {game.groupSize}</span>
+        <span className="inline-flex items-center gap-1"><MapPin className="h-4 w-4" /> {game.setting?.join("/")}</span>
+        <span className="inline-flex items-center gap-1"><Dumbbell className="h-4 w-4" /> {game.energy}</span>
+        <span className="inline-flex items-center gap-1"><Clock3 className="h-4 w-4" /> {game.time}m</span>
+      </div>
+      <ol className="ml-4 mt-3 list-decimal space-y-1 text-sm">
+        {game.instructions?.slice(0, 4).map((s, i) => (
+          <li key={i}>{s}</li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="mt-12 border-t pt-6 text-center text-xs opacity-60 print:hidden">
+      Built with ❤️ for youth leaders. Add more games later via a CMS or JSON file.
+    </footer>
+  );
+}
